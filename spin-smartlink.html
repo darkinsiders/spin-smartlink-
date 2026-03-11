@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Redirecting…</title>
+  <meta charset="UTF-8">
+  <style>
+    body { margin: 0; display: flex; align-items: center; justify-content: center;
+           min-height: 100vh; background: #0d0f14; color: #7d8590;
+           font-family: sans-serif; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div>Redirecting…</div>
+  <script>
+    var FUNNEL = "Spin";
+    var FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/affdashboard-3f1a3/databases/(default)/documents/routes/spin";
+    var HARDCODED_FALLBACK = "https://track.padrinopartners.com/visit/?bta=35062&brand=needforslots&afp=Dark&utm_campaign=Spin";
+
+    function hashIP(ip) {
+      var h = 0;
+      for (var i = 0; i < ip.length; i++) {
+        h = (Math.imul(31, h) + ip.charCodeAt(i)) | 0;
+      }
+      return Math.abs(h);
+    }
+
+    function redirect(routes, fallback, code, ip) {
+      var options = routes[code];
+      if (!options || !options.length) { window.location.replace(fallback); return; }
+      var total = options.reduce(function(s, o) { return s + o[1]; }, 0);
+      if (total <= 0) { window.location.replace(fallback); return; }
+      var h = ip ? hashIP(ip) % total : 0;
+      var cum = 0;
+      for (var i = 0; i < options.length; i++) {
+        cum += options[i][1];
+        if (h < cum) { window.location.replace(options[i][0]); return; }
+      }
+      window.location.replace(options[options.length - 1][0]);
+    }
+
+    function doRedirect(routes, fallback) {
+      fetch('https://ipapi.co/json/')
+        .then(function(r){ return r.json(); })
+        .then(function(d){ redirect(routes, fallback, d.country_code || d.country, d.ip || ''); })
+        .catch(function(){
+          fetch('https://freeipapi.com/api/json')
+            .then(function(r){ return r.json(); })
+            .then(function(d){ redirect(routes, fallback, d.countryCode, d.ipAddress || ''); })
+            .catch(function(){ window.location.replace(fallback); });
+        });
+    }
+
+    fetch(FIRESTORE_URL)
+      .then(function(r){ return r.json(); })
+      .then(function(doc) {
+        var routes = JSON.parse(doc.fields.routes.stringValue);
+        var fallback = doc.fields.fallback.stringValue || HARDCODED_FALLBACK;
+        doRedirect(routes, fallback);
+      })
+      .catch(function() {
+        window.location.replace(HARDCODED_FALLBACK);
+      });
+  </script>
+</body>
+</html>
