@@ -14,7 +14,10 @@
   <script>
     var FUNNEL = "Spin";
     var FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/affdashboard-3f1a3/databases/(default)/documents/routes/spin";
-    var HARDCODED_FALLBACK = "https://track.padrinopartners.com/visit/?bta=35062&brand=needforslots&afp=Dark&utm_campaign=Spin";
+    var CLICKS_URL = "https://firestore.googleapis.com/v1/projects/affdashboard-3f1a3/databases/(default)/documents/clicks?key=AIzaSyCVegt6HxRbJAe1Es_SHEMPH1P3e9YvOvU";
+    var HARDCODED_FALLBACK = "";
+    var URL_TO_CASINO = {"https://track.rollettoaffiliate.com/visit/?bta=38243&brand=rolletto&utm_campaign=Spin":"ROLLETTO","https://track.7ladies.com/visit/?bta=35364&nci=5370&afp1&afp10=Facebook&utm_campaign=Spin&afp2=Spin":"IVYBET","https://clicktrueluck.com/t1h17oaiw":"TRUELUCK"};
+    var sub1 = new URLSearchParams(window.location.search).get('sub1') || '';
 
     function hashIP(ip) {
       var h = 0;
@@ -24,18 +27,44 @@
       return Math.abs(h);
     }
 
+    function logClick(geo, casino) {
+      try {
+        fetch(CLICKS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: {
+            ts:     { stringValue: new Date().toISOString() },
+            funnel: { stringValue: FUNNEL },
+            geo:    { stringValue: geo || '' },
+            casino: { stringValue: casino || 'unknown' },
+            sub1:   { stringValue: sub1 }
+          }})
+        });
+      } catch(e) {}
+    }
+
     function redirect(routes, fallback, code, ip) {
+      var url, casino;
       var options = routes[code];
-      if (!options || !options.length) { window.location.replace(fallback); return; }
-      var total = options.reduce(function(s, o) { return s + o[1]; }, 0);
-      if (total <= 0) { window.location.replace(fallback); return; }
-      var h = ip ? hashIP(ip) % total : 0;
-      var cum = 0;
-      for (var i = 0; i < options.length; i++) {
-        cum += options[i][1];
-        if (h < cum) { window.location.replace(options[i][0]); return; }
+      if (!options || !options.length) {
+        url = fallback; casino = 'fallback';
+      } else {
+        var total = options.reduce(function(s, o) { return s + o[1]; }, 0);
+        if (total <= 0) {
+          url = fallback; casino = 'fallback';
+        } else {
+          var h = ip ? hashIP(ip) % total : 0;
+          var cum = 0;
+          for (var i = 0; i < options.length; i++) {
+            cum += options[i][1];
+            if (h < cum) { url = options[i][0]; break; }
+          }
+          if (!url) url = options[options.length - 1][0];
+          casino = URL_TO_CASINO[url] || 'unknown';
+        }
       }
-      window.location.replace(options[options.length - 1][0]);
+      logClick(code, casino);
+      window.location.replace(url);
     }
 
     function doRedirect(routes, fallback) {
@@ -46,7 +75,10 @@
           fetch('https://freeipapi.com/api/json')
             .then(function(r){ return r.json(); })
             .then(function(d){ redirect(routes, fallback, d.countryCode, d.ipAddress || ''); })
-            .catch(function(){ window.location.replace(fallback); });
+            .catch(function(){
+              logClick('unknown', 'fallback');
+              window.location.replace(fallback);
+            });
         });
     }
 
@@ -58,6 +90,7 @@
         doRedirect(routes, fallback);
       })
       .catch(function() {
+        logClick('unknown', 'fallback');
         window.location.replace(HARDCODED_FALLBACK);
       });
   </script>
