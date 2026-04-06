@@ -49,20 +49,28 @@
 
     function injectTracking(url) {
       if (!url || !src) return url;
-      var sep = url.indexOf('?') !== -1 ? '&' : '?';
+      var isCellXpert = /7ladies|cosmobetpartners|rollettoaffiliate|velobetpartners|cellxpert|ftdgallery|padrino|needforslots/.test(url);
+      var p1 = isCellXpert ? 'afp2' : 'sub1';
+      var p2 = isCellXpert ? 'afp3' : 'sub2';
       var u = url;
-      var isCellXpert = /7ladies|cosmobetpartners|rollettoaffiliate|velobetpartners|cellxpert|ftdgallery|padrino|needforslots/.test(u);
-      if (isCellXpert) {
-        u += sep + 'afp2=' + encodeURIComponent(src);
-        if (campaign) u += '&afp3=' + encodeURIComponent(campaign);
+      var re1 = new RegExp('([?&])' + p1 + '=[^&#]*');
+      if (re1.test(u)) {
+        u = u.replace(re1, '$1' + p1 + '=' + encodeURIComponent(src));
       } else {
-        u += sep + 'sub1=' + encodeURIComponent(src);
-        if (campaign) u += '&sub2=' + encodeURIComponent(campaign);
+        u += (u.indexOf('?') !== -1 ? '&' : '?') + p1 + '=' + encodeURIComponent(src);
+      }
+      if (campaign) {
+        var re2 = new RegExp('([?&])' + p2 + '=[^&#]*');
+        if (re2.test(u)) {
+          u = u.replace(re2, '$1' + p2 + '=' + encodeURIComponent(campaign));
+        } else {
+          u += '&' + p2 + '=' + encodeURIComponent(campaign);
+        }
       }
       return u;
     }
 
-    function redirect(routes, fallback, code, ip) {
+    function redirect(routes, fallback, code, ip, utc) {
       var url, casino;
       var options = routes[code];
       if (!options || !options.length) {
@@ -79,21 +87,21 @@
             if (h < cum) { url = options[i][0]; break; }
           }
           if (!url) url = options[options.length - 1][0];
-          casino = URL_TO_CASINO[url] || 'unknown';
+          casino = (utc || URL_TO_CASINO)[url] || 'unknown';
         }
       }
       logClick(code, casino);
       window.location.replace(injectTracking(url));
     }
 
-    function doRedirect(routes, fallback) {
+    function doRedirect(routes, fallback, utc) {
       fetch('https://ipapi.co/json/')
         .then(function(r){ return r.json(); })
-        .then(function(d){ redirect(routes, fallback, d.country_code || d.country, d.ip || ''); })
+        .then(function(d){ redirect(routes, fallback, d.country_code || d.country, d.ip || '', utc); })
         .catch(function(){
           fetch('https://freeipapi.com/api/json')
             .then(function(r){ return r.json(); })
-            .then(function(d){ redirect(routes, fallback, d.countryCode, d.ipAddress || ''); })
+            .then(function(d){ redirect(routes, fallback, d.countryCode, d.ipAddress || '', utc); })
             .catch(function(){
               logClick('unknown', 'fallback');
               window.location.replace(injectTracking(fallback));
@@ -106,7 +114,8 @@
       .then(function(doc) {
         var routes = JSON.parse(doc.fields.routes.stringValue);
         var fallback = doc.fields.fallback.stringValue || HARDCODED_FALLBACK;
-        doRedirect(routes, fallback);
+        var utc = doc.fields.urlToCasino ? JSON.parse(doc.fields.urlToCasino.stringValue) : URL_TO_CASINO;
+        doRedirect(routes, fallback, utc);
       })
       .catch(function() {
         logClick('unknown', 'fallback');
