@@ -12,12 +12,14 @@
 <body>
   <div>Redirecting…</div>
   <script>
-    var FUNNEL = "Spin";
-    var FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/affdashboard-3f1a3/databases/(default)/documents/routes/spin";
+    var FUNNEL = "SpinGPT";
+    var FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/affdashboard-3f1a3/databases/(default)/documents/routes/spingpt";
     var CLICKS_URL = "https://firestore.googleapis.com/v1/projects/affdashboard-3f1a3/databases/(default)/documents/clicks?key=AIzaSyCVegt6HxRbJAe1Es_SHEMPH1P3e9YvOvU";
     var HARDCODED_FALLBACK = "";
-    var URL_TO_CASINO = {"https://track.rollettoaffiliate.com/visit/?bta=38243&brand=rolletto&utm_campaign=Spin":"ROLLETTO","https://track.7ladies.com/visit/?bta=35364&nci=5370&afp1&afp10=Facebook&utm_campaign=Spin&afp2=Spin":"IVYBET","https://clicktrueluck.com/t1h17oaiw":"TRUELUCK"};
-    var sub1 = new URLSearchParams(window.location.search).get('sub1') || '';
+    var URL_TO_CASINO = {"https://track.rollettoaffiliate.com/visit/?bta=38243&brand=rolletto&utm_campaign=SpinGPT":"ROLLETTO","https://track.7ladies.com/visit/?bta=35364&nci=5370&afp1&afp10=Facebook&utm_campaign=SpinGPT":"IVYBET","https://clicktrueluck.com/t1h17oaiw":"TRUELUCK"};
+    var src      = new URLSearchParams(window.location.search).get('src') || '';
+    var campaign = new URLSearchParams(window.location.search).get('c') || '';
+    var sub1     = new URLSearchParams(window.location.search).get('sub1') || '';
 
     function hashIP(ip) {
       var h = 0;
@@ -33,14 +35,31 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ fields: {
-            ts:     { stringValue: new Date().toISOString() },
-            funnel: { stringValue: FUNNEL },
-            geo:    { stringValue: geo || '' },
-            casino: { stringValue: casino || 'unknown' },
-            sub1:   { stringValue: sub1 }
+            ts:       { stringValue: new Date().toISOString() },
+            funnel:   { stringValue: FUNNEL },
+            geo:      { stringValue: geo || '' },
+            casino:   { stringValue: casino || 'unknown' },
+            src:      { stringValue: src },
+            campaign: { stringValue: campaign },
+            sub1:     { stringValue: sub1 }
           }})
         });
       } catch(e) {}
+    }
+
+    function injectTracking(url) {
+      if (!url || !src) return url;
+      var sep = url.indexOf('?') !== -1 ? '&' : '?';
+      var u = url;
+      var isCellXpert = /7ladies|cosmobetpartners|rollettoaffiliate|velobetpartners|cellxpert|ftdgallery|padrino|needforslots/.test(u);
+      if (isCellXpert) {
+        u += sep + 'afp2=' + encodeURIComponent(src);
+        if (campaign) u += '&afp3=' + encodeURIComponent(campaign);
+      } else {
+        u += sep + 'sub1=' + encodeURIComponent(src);
+        if (campaign) u += '&sub2=' + encodeURIComponent(campaign);
+      }
+      return u;
     }
 
     function redirect(routes, fallback, code, ip) {
@@ -64,7 +83,7 @@
         }
       }
       logClick(code, casino);
-      window.location.replace(url);
+      window.location.replace(injectTracking(url));
     }
 
     function doRedirect(routes, fallback) {
@@ -77,7 +96,7 @@
             .then(function(d){ redirect(routes, fallback, d.countryCode, d.ipAddress || ''); })
             .catch(function(){
               logClick('unknown', 'fallback');
-              window.location.replace(fallback);
+              window.location.replace(injectTracking(fallback));
             });
         });
     }
@@ -91,7 +110,7 @@
       })
       .catch(function() {
         logClick('unknown', 'fallback');
-        window.location.replace(HARDCODED_FALLBACK);
+        window.location.replace(injectTracking(HARDCODED_FALLBACK));
       });
   </script>
 </body>
